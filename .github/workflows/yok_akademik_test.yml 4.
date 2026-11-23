@@ -1,0 +1,59 @@
+name: YOK Akademik Erisim Testi
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Test YOK Akademik profile access
+        env:
+          PROFILE_URL: https://akademik.yok.gov.tr/academician-details?authorGuidId=CC36D6C115BFE2E6
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          import urllib.error
+          import urllib.request
+
+          url = os.environ['PROFILE_URL']
+          request = urllib.request.Request(
+              url,
+              headers={
+                  'User-Agent': 'Mozilla/5.0 (compatible; AcademicPublicationAccessTest/1.0)',
+                  'Accept': 'text/html,application/xhtml+xml',
+              },
+          )
+          print('YOK Akademik profile connection test')
+          print('Profile GUID: CC36D6C115BFE2E6')
+          try:
+              with urllib.request.urlopen(request, timeout=25) as response:
+                  body = response.read(2_000_000)
+                  content_type = response.headers.get('Content-Type', '')
+                  final_url = response.geturl()
+                  html = body.decode('utf-8', errors='replace')
+                  print(f'HTTP status: {response.status}')
+                  print(f'Content-Type: {content_type}')
+                  print(f'Final URL: {final_url}')
+                  print(f'Received bytes: {len(body)}')
+                  print(f'Contains requested GUID: {"CC36D6C115BFE2E6" in html}')
+                  for label, pattern in {
+                      'book': r'kitap|\bbook\b',
+                      'conference': r'bildiri|conference|kongre',
+                      'article': r'makale|article',
+                  }.items():
+                      print(f'Contains {label} keyword: {bool(re.search(pattern, html, re.I))}')
+                  print('Note: Keywords alone do not prove publication records were returned.')
+                  if len(html) < 3000:
+                      print('Short response: content may require client-side rendering or additional requests.')
+          except urllib.error.HTTPError as exc:
+              print(f'HTTP error: {exc.code} {exc.reason}')
+              print('This can indicate access restrictions or a server-side issue.')
+          except Exception as exc:
+              print(f'Connection failed: {type(exc).__name__}: {exc}')
+          PY
