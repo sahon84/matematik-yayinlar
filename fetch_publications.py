@@ -180,6 +180,24 @@ def merge(existing, new):
     return result
 
 
+# Journal issue date corrections for records whose source metadata uses an
+# earlier online-publication date. Keep this mapping in source control so that
+# daily snapshot regeneration does not overwrite the corrected date.
+PUBLICATION_DATE_OVERRIDES = {
+    "10.1016/j.ins.2025.123003": "2026-04-05",
+}
+
+
+def apply_publication_date_overrides(work):
+    doi = doi_norm(work.get("doi"))
+    corrected_date = PUBLICATION_DATE_OVERRIDES.get(doi)
+    if corrected_date:
+        updated = dict(work)
+        updated["publication_date"] = corrected_date
+        return updated
+    return work
+
+
 def main():
     per_person = {}
     for name, orcid in PEOPLE:
@@ -190,7 +208,7 @@ def main():
         for work in oa + orc:
             key = work_key(work)
             unique[key] = merge(unique[key], work) if key in unique else work
-        per_person[orcid] = list(unique.values())
+        per_person[orcid] = [apply_publication_date_overrides(w) for w in unique.values()]
         print(f"  OpenAlex={len(oa)}, ORCID={len(orc)}, merged={len(unique)}", flush=True)
 
     # Do not publish a partial snapshot if a person/API request failed.
